@@ -142,3 +142,111 @@ Let’s outline how to dockerize your Telegram bot using Django REST Framework (
 - **Localtunnel** is a simple and free solution but might not be as reliable for production or extensive testing.
 
 Each tool has its pros and cons, and your choice depends on your specific requirements, such as stability, URL persistence, and whether or not you need real-time request inspection features.
+
+
+
+***
+
+
+To automate Telegram webhook setup and testing within GitHub Actions, you can use alternatives to `ngrok`, as GitHub Actions workflows do not support running external services like `ngrok` directly. Below are some options for testing Telegram webhooks using GitHub Actions:
+
+### 1. **Use a Self-Hosted Server**
+   - Deploy your script to a remote VPS or cloud server (e.g., AWS, DigitalOcean, or Google Cloud) with a public IP.
+   - Set up a workflow in GitHub Actions to SSH into the server, run your script, and update the Telegram webhook.
+   - Example GitHub Action with SSH:
+     ```yaml
+     jobs:
+       deploy:
+         runs-on: ubuntu-latest
+         steps:
+           - name: Checkout code
+             uses: actions/checkout@v2
+           - name: Run Webhook Setup Script on Server
+             uses: appleboy/ssh-action@v0.1.3
+             with:
+               host: ${{ secrets.SSH_HOST }}
+               username: ${{ secrets.SSH_USER }}
+               key: ${{ secrets.SSH_PRIVATE_KEY }}
+               script: |
+                 cd /path/to/your/script
+                 ./your-script.sh
+     ```
+
+### 2. **Use a Service like `localhost.run`**
+   - `localhost.run` is an alternative to `ngrok` for exposing local services to the web. It’s simpler to use within GitHub Actions, as it doesn't require an account.
+   - Example steps:
+     1. Create a tunnel using `localhost.run` in your script.
+     2. Use this URL to set up your Telegram webhook.
+   
+   Example workflow:
+   ```yaml
+   jobs:
+     setup-webhook:
+       runs-on: ubuntu-latest
+       steps:
+         - name: Checkout code
+           uses: actions/checkout@v2
+
+         - name: Expose local server with localhost.run
+           run: |
+             ssh -R 80:localhost:3000 localhost.run &
+
+         - name: Setup Webhook
+           run: |
+             curl -X POST https://api.telegram.org/bot<YOUR_TOKEN>/setWebhook \
+             -d "url=<YOUR_PUBLIC_URL_FROM_LOCALHOST.RUN>"
+   ```
+
+### 3. **Use a Free-tier Cloud Function (Serverless)**
+   - Use cloud functions such as AWS Lambda, Google Cloud Functions, or Azure Functions to expose your webhook endpoint. You can trigger the cloud function from the GitHub Action.
+   - Example:
+     1. Deploy a simple API endpoint to AWS Lambda using the Serverless framework.
+     2. Use this endpoint URL in the Telegram webhook setup.
+     3. In your GitHub Actions workflow, call the cloud function URL.
+
+   Example workflow:
+   ```yaml
+   jobs:
+     deploy-webhook:
+       runs-on: ubuntu-latest
+       steps:
+         - name: Setup Telegram Webhook using Cloud Function
+           run: |
+             curl -X POST https://api.telegram.org/bot<YOUR_TOKEN>/setWebhook \
+             -d "url=<YOUR_CLOUD_FUNCTION_URL>"
+   ```
+
+### 4. **Use a Pre-built Dockerized Reverse Proxy**
+   - You can run a reverse proxy inside GitHub Actions (e.g., using `localtunnel`) that will expose the local server to the public web.
+   - Example using `localtunnel` in GitHub Actions:
+     ```yaml
+     jobs:
+       webhook-setup:
+         runs-on: ubuntu-latest
+         steps:
+           - name: Checkout code
+             uses: actions/checkout@v2
+
+           - name: Install localtunnel
+             run: npm install -g localtunnel
+
+           - name: Start local server
+             run: node your_local_server.js &
+
+           - name: Expose local server to the public
+             run: lt --port 3000 --subdomain your-custom-subdomain &
+
+           - name: Setup Telegram Webhook
+             run: |
+               curl -X POST https://api.telegram.org/bot<YOUR_TOKEN>/setWebhook \
+               -d "url=https://your-custom-subdomain.loca.lt"
+     ```
+
+### 5. **Use an Online CI/CD Tool that Supports Public Webhooks**
+   - Some CI/CD services, like GitLab CI or CircleCI, provide public URLs for jobs or custom runners, which you can use to expose your webhook endpoint. This eliminates the need for `ngrok` or other tunneling solutions.
+
+### Conclusion:
+- For testing Telegram webhooks in GitHub Actions, I would recommend using either a cloud-based option (e.g., AWS Lambda or Google Cloud Functions) or an external tunneling service (like `localhost.run` or `localtunnel`) to simulate the public URL required by Telegram.
+- The specific choice depends on your preference for infrastructure and ease of setup.
+
+Let me know which option you would prefer or if you need help with the configuration!
